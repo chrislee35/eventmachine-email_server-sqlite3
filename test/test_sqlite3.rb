@@ -21,7 +21,7 @@ class TestEmailServer < Minitest::Test
   def setup
     @test_vector = Proc.new { |test_name|
       puts "***** #{test_name} *****"
-      (test_name.to_s =~ /sqlite3/)
+      (test_name.to_s =~ /example/)
     }
     @spam_email = EmailTemplate.new("friend@example.org", "chris@example.org", "From: friend@example.org
 To: chris@example.org
@@ -168,4 +168,35 @@ Looks like we had fun!
     setup_user(userstore)
     run_test(userstore, emailstore)
   end
+  
+  def test_example
+    return unless @test_vector.call(__method__)
+    #require 'eventmachine'
+    #require 'eventmachine/email_server'
+    #require 'eventmachine/email_server/sqlite3'
+    #require 'sqlite3'
+    #include EventMachine::EmailServer
+    s = SQLite3::Database.new("email_server.sqlite3")
+    
+    # we pass in the same database handle for the Sqlite3UserStore and the Sqlite3EmailStore so that we can keep everything in one database file
+    userstore = Sqlite3UserStore.new(s)
+    # add a user
+    #  first argument is the user's id for the database
+    #  second argument is the user's login name
+    #  third argument is the user's password
+    #  forth argument is the email address that delivers mail to this user
+    userstore << User.new(1, "chris", "password", "chris@example.org")
+    
+    # we pass in the same database handle for the Sqlite3UserStore and the Sqlite3EmailStore so that we can keep everything in one database file
+    emailstore = Sqlite3EmailStore.new(s)
+    
+    EM.run {
+      pop3 = EventMachine::start_server "0.0.0.0", 2110, POP3Server, "example.org", userstore, emailstore
+      smtp = EventMachine::start_server "0.0.0.0", 2025, SMTPServer, "example.org", userstore, emailstore
+      timer = EventMachine::Timer.new(0.1) do
+        EM.stop
+      end
+    }
+  end
+  
 end
